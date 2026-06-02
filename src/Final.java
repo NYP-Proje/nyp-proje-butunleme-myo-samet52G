@@ -130,7 +130,6 @@ public class Final {
             for (int j = 0; j < sutun; j++) {
                 Ogrenci o = sinifMatrisi[i][j];
                 if (o != null) {
-                    // Sabit genişlik (-25) vererek isimlerin kaymasını engelledik
                     System.out.printf("[%-20s (%-7s)]\t", o.getAdSoyad(), o.getBolum());
                 } else {
                     System.out.printf("[%-20s (%-7s)]\t", "BOS KOLTUK", "---");
@@ -146,7 +145,6 @@ public class Final {
 
 
     private static boolean konumGuvenliMi(Ogrenci[][] matris, int r, int c, String bolum) {
-
         int[] dr = {-1, 1, 0, 0};
         int[] dc = {0, 0, -1, 1};
 
