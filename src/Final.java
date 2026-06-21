@@ -6,6 +6,9 @@ import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,18 +19,20 @@ public class Final extends JFrame {
 
     private JPanel pnlSinifGrid;
     private KartTasarim lblKapasite, lblYerlesen, lblBosKoltuk;
-    private JButton btnPlanla;
+    private JButton btnPlanla, btnDisaAktar;
 
     private JTextField txtAdSoyad;
     private JTextField txtBolum;
     private JTextField txtSatirSayisi;
-    private JTextField txtAra; // Gelişmiş canlı arama kutusu
+    private JTextField txtAra;
     private JButton btnEkle, btnGuncelle, btnSil;
     private JTable tblOgrenciListesi;
     private Long secilenOgrenciId = null;
 
     private JPanel pnlGiris;
     private JPanel pnlAnaIcerik;
+
+    private Ogrenci[][] sonUretilenMatris = null;
 
     public Final() {
         setTitle("Sınav Oturma Düzeni ve Yönetim Otomasyonu");
@@ -68,7 +73,7 @@ public class Final extends JFrame {
         lblGirisAltBaslik.setForeground(new Color(200, 214, 229));
         lblGirisAltBaslik.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JButton btnStart = new JButton("Sistemine Giriş Yap") {
+        JButton btnStart = new JButton("Sisteme Giriş Yap") {
             @Override
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
@@ -129,7 +134,7 @@ public class Final extends JFrame {
         pnlForm.add(btnEkle); pnlForm.add(btnGuncelle);
         pnlSol.add(pnlForm, BorderLayout.NORTH);
 
-        // Arama Filtreleme Arayüz Grubu
+        // Arama Filtreleme Grubu
         JPanel pnlAramaGrup = new JPanel(new BorderLayout(5, 5));
         pnlAramaGrup.setBackground(Color.WHITE);
         JPanel pnlAramaSatir = new JPanel(new BorderLayout(8, 0));
@@ -152,7 +157,7 @@ public class Final extends JFrame {
 
         pnlSol.add(pnlAramaGrup, BorderLayout.CENTER);
 
-        btnSil = new ButonTasarim("Seçili Öğrenciyi Veritabanından Sil", new Color(231, 76, 60));
+        btnSil = new ButonTasarim("Seçili Öğrenciyi Sil", new Color(231, 76, 60));
         pnlSol.add(btnSil, BorderLayout.SOUTH);
 
         pnlAnaIcerik.add(pnlSol, BorderLayout.WEST);
@@ -173,9 +178,14 @@ public class Final extends JFrame {
         btnPlanla = new ButonTasarim("Sınav Oturma Planını Hazırla", new Color(52, 73, 94));
         btnPlanla.setPreferredSize(new Dimension(220, 35));
 
+        btnDisaAktar = new ButonTasarim("Planı Excel/CSV Olarak Aktar", new Color(142, 68, 173));
+        btnDisaAktar.setPreferredSize(new Dimension(220, 35));
+        btnDisaAktar.setEnabled(false);
+
         pnlUst.add(lblSatir);
         pnlUst.add(txtSatirSayisi);
         pnlUst.add(btnPlanla);
+        pnlUst.add(btnDisaAktar);
         pnlMerkez.add(pnlUst, BorderLayout.NORTH);
 
         pnlSinifGrid = new JPanel(null);
@@ -213,20 +223,20 @@ public class Final extends JFrame {
         });
 
         btnPlanla.addActionListener(e -> planiArayuzeYansit());
+        btnDisaAktar.addActionListener(e -> planiCsvOlarakAktar());
         btnEkle.addActionListener(e -> ogrenciEkle());
         btnGuncelle.addActionListener(e -> ogrenciGuncelle());
         btnSil.addActionListener(e -> ogrenciSil());
 
-        // HATA DÜZELTİLDİ: changeUpdate -> changedUpdate yapıldı.
         txtAra.getDocument().addDocumentListener(new DocumentListener() {
             @Override
-            public void insertUpdate(DocumentEvent e) { canlıFiltrele(); }
+            public void insertUpdate(DocumentEvent e) { canliFiltrele(); }
             @Override
-            public void removeUpdate(DocumentEvent e) { canlıFiltrele(); }
+            public void removeUpdate(DocumentEvent e) { canliFiltrele(); }
             @Override
-            public void changedUpdate(DocumentEvent e) { canlıFiltrele(); }
+            public void changedUpdate(DocumentEvent e) { canliFiltrele(); }
 
-            private void canlıFiltrele() {
+            private void canliFiltrele() {
                 String arananMetin = txtAra.getText().trim().toLowerCase();
                 DefaultTableModel model = (DefaultTableModel) tblOgrenciListesi.getModel();
                 TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
@@ -236,12 +246,14 @@ public class Final extends JFrame {
         });
 
         tblOgrenciListesi.getSelectionModel().addListSelectionListener(e -> {
-            int selectedRow = tblOgrenciListesi.getSelectedRow();
-            if (selectedRow != -1) {
-                int modelRow = tblOgrenciListesi.convertRowIndexToModel(selectedRow);
-                secilenOgrenciId = (Long) tblOgrenciListesi.getModel().getValueAt(modelRow, 0);
-                txtAdSoyad.setText(tblOgrenciListesi.getModel().getValueAt(modelRow, 1).toString());
-                txtBolum.setText(tblOgrenciListesi.getModel().getValueAt(modelRow, 2).toString());
+            if (!e.getValueIsAdjusting()) {
+                int selectedRow = tblOgrenciListesi.getSelectedRow();
+                if (selectedRow != -1) {
+                    int modelRow = tblOgrenciListesi.convertRowIndexToModel(selectedRow);
+                    secilenOgrenciId = (Long) tblOgrenciListesi.getModel().getValueAt(modelRow, 0);
+                    txtAdSoyad.setText(tblOgrenciListesi.getModel().getValueAt(modelRow, 1).toString());
+                    txtBolum.setText(tblOgrenciListesi.getModel().getValueAt(modelRow, 2).toString());
+                }
             }
         });
 
@@ -263,8 +275,11 @@ public class Final extends JFrame {
         }
         txtAdSoyad.setText("");
         txtBolum.setText("");
-        if (txtAra != null) txtAra.setText("");
         secilenOgrenciId = null;
+
+        if (lblYerlesen != null) {
+            lblYerlesen.guncelle(list.size() + " Öğrenci");
+        }
     }
 
     private void ogrenciEkle() {
@@ -294,6 +309,10 @@ public class Final extends JFrame {
         }
         String ad = txtAdSoyad.getText().trim();
         String bolum = txtBolum.getText().trim();
+        if (ad.isEmpty() || bolum.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Lütfen alanları boş bırakmayın!", "Uyarı", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
         String query = "UPDATE Ogrenciler SET adSoyad = ?, bolum = ? WHERE id = ?";
         try (Connection conn = DriverManager.getConnection(DB_URL);
              PreparedStatement ps = conn.prepareStatement(query)) {
@@ -301,7 +320,7 @@ public class Final extends JFrame {
             ps.setString(2, bolum);
             ps.setLong(3, secilenOgrenciId);
             ps.executeUpdate();
-            JOptionPane.showMessageDialog(this, "Öğrenci bilgilerileri güncellendi.");
+            JOptionPane.showMessageDialog(this, "Öğrenci bilgileri güncellendi.");
             solListeyiYenile();
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Güncelleme Hatası: " + e.getMessage());
@@ -332,7 +351,7 @@ public class Final extends JFrame {
         List<Ogrenci> ogrenciListesi = veritabanindanOgrencileriCek();
 
         if (ogrenciListesi.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "HATA: Veritabanında öğrenci yok!", "Hata", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "HATA: Veritabanında öğrenci bulunamadı!", "Hata", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
@@ -348,7 +367,7 @@ public class Final extends JFrame {
         int sutunlar = (int) Math.ceil((double) ogrenciListesi.size() / satirlar);
         if (sutunlar < 3) sutunlar = 3;
 
-        Ogrenci[][] sinifMatrisi = dikeyOturmaPlaniOlustur(ogrenciListesi, satirlar, sutunlar);
+        sonUretilenMatris = dikeyOturmaPlaniOlustur(ogrenciListesi, satirlar, sutunlar);
 
         pnlSinifGrid.removeAll();
 
@@ -376,14 +395,13 @@ public class Final extends JFrame {
         pnlTahta.setBounds((toplamPanelGenislik - tahtaGenislik) / 2, 15, tahtaGenislik, tahtaYuksekligi);
         pnlSinifGrid.add(pnlTahta);
 
-        int ogrenciSiraNo = 1;
+        for (int i = 0; i < satirlar; i++) {
+            int yKoordinati = baslangicY + (i * (koltukYuksekligi + dikeyBosluk));
 
-        for (int j = 0; j < sutunlar; j++) {
-            int xKoordinati = 30 + (j * (sabitKoltukGenisligi + yatayBosluk));
-
-            for (int i = 0; i < satirlar; i++) {
-                Ogrenci o = sinifMatrisi[i][j];
-                int yKoordinati = baslangicY + (i * (koltukYuksekligi + dikeyBosluk));
+            for (int j = 0; j < sutunlar; j++) {
+                Ogrenci o = sonUretilenMatris[i][j];
+                int xKoordinati = 30 + (j * (sabitKoltukGenisligi + yatayBosluk));
+                int siraNo = (i * sutunlar) + j + 1;
 
                 JPanel pnlKoltuk = new JPanel(new BorderLayout());
                 pnlKoltuk.setBackground(Color.WHITE);
@@ -393,22 +411,21 @@ public class Final extends JFrame {
                 JLabel lblOgrenciBilgi = new JLabel("", SwingConstants.CENTER);
                 lblOgrenciBilgi.setFont(new Font("Segoe UI", Font.PLAIN, 11));
 
-                final int gecerliSiraNo = ogrenciSiraNo;
+                final int gecerliSiraNo = siraNo;
                 final Ogrenci gecerliOgrenci = o;
 
                 if (o != null) {
-                    lblOgrenciBilgi.setText("<html><center><b style='color:#2980b9; font-size:12px;'>" + ogrenciSiraNo + "</b><br><b style='color:#2c3e50;'>" + o.getAdSoyad() + "</b><br><span style='color:#95a5a6; font-size:9px;'>" + o.getBolum() + "</span></center></html>");
+                    lblOgrenciBilgi.setText("<html><center><b style='color:#2980b9; font-size:12px;'>" + siraNo + "</b><br><b style='color:#2c3e50;'>" + o.getAdSoyad() + "</b><br><span style='color:#95a5a6; font-size:9px;'>" + o.getBolum() + "</span></center></html>");
                     pnlKoltuk.setBorder(BorderFactory.createCompoundBorder(
                             BorderFactory.createLineBorder(new Color(189, 195, 199), 1),
                             BorderFactory.createEmptyBorder(2, 2, 2, 2)
                     ));
                 } else {
-                    lblOgrenciBilgi.setText("<html><center><b style='color:#e67e22; font-size:11px;'>" + ogrenciSiraNo + "</b><br><span style='color:#d35400; font-size:10px;'>BOŞ</span></center></html>");
+                    lblOgrenciBilgi.setText("<html><center><b style='color:#e67e22; font-size:11px;'>" + siraNo + "</b><br><span style='color:#d35400; font-size:10px;'>BOŞ</span></center></html>");
                     pnlKoltuk.setBackground(new Color(253, 242, 233));
                     pnlKoltuk.setBorder(BorderFactory.createLineBorder(new Color(245, 139, 44, 80), 1));
                 }
 
-                // Koltuk detaylarını gösteren Mouse Event Listener modülü
                 pnlKoltuk.addMouseListener(new MouseAdapter() {
                     @Override
                     public void mouseClicked(MouseEvent e) {
@@ -450,7 +467,6 @@ public class Final extends JFrame {
 
                 pnlKoltuk.add(lblOgrenciBilgi, BorderLayout.CENTER);
                 pnlSinifGrid.add(pnlKoltuk);
-                ogrenciSiraNo++;
             }
         }
 
@@ -461,8 +477,53 @@ public class Final extends JFrame {
         lblYerlesen.guncelle(ogrenciListesi.size() + " Öğrenci");
         lblBosKoltuk.guncelle(bosKoltuk + " Boş Yer");
 
+        btnDisaAktar.setEnabled(true);
+
         pnlSinifGrid.revalidate();
         pnlSinifGrid.repaint();
+    }
+
+    private void planiCsvOlarakAktar() {
+        if (sonUretilenMatris == null) {
+            JOptionPane.showMessageDialog(this, "Önce bir oturma planı hazırlamalısınız!", "Uyarı", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Oturma Planını Kaydet");
+        fileChooser.setSelectedFile(new File("sinav_oturma_plani.csv"));
+
+        int userSelection = fileChooser.showSaveDialog(this);
+        if (userSelection == JFileChooser.APPROVE_OPTION) {
+            File dosya = fileChooser.getSelectedFile();
+            try (FileWriter fw = new FileWriter(dosya)) {
+                fw.write('\ufeff'); // Excel Türkçe karakter desteği
+
+                int satirlar = sonUretilenMatris.length;
+                int sutunlar = sonUretilenMatris[0].length;
+
+                for (int j = 0; j < sutunlar; j++) {
+                    fw.write((j + 1) + ". Kolon;");
+                }
+                fw.write("\n");
+
+                for (int i = 0; i < satirlar; i++) {
+                    for (int j = 0; j < sutunlar; j++) {
+                        Ogrenci o = sonUretilenMatris[i][j];
+                        if (o != null) {
+                            fw.write(o.getAdSoyad() + " (" + o.getBolum() + ");");
+                        } else {
+                            fw.write("BOŞ;");
+                        }
+                    }
+                    fw.write("\n");
+                }
+
+                JOptionPane.showMessageDialog(this, "Oturma planı başarıyla CSV formatında kaydedildi!", "Başarılı", JOptionPane.INFORMATION_MESSAGE);
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "Dosya Yazma Hatası: " + ex.getMessage(), "Hata", JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 
     private List<Ogrenci> veritabanindanOgrencileriCek() {
@@ -484,9 +545,9 @@ public class Final extends JFrame {
     }
 
     public static Ogrenci[][] dikeyOturmaPlaniOlustur(List<Ogrenci> list, int satir, int sutun) {
-        Ogrenci[][] sinifMatrisi = null;
+        Ogrenci[][] sinifMatrisi = new Ogrenci[satir][sutun];
         boolean basariliDuzen = false;
-        int maxDeneme = 3000;
+        int maxDeneme = 2000;
         int deneme = 0;
 
         while (deneme < maxDeneme && !basariliDuzen) {
@@ -495,8 +556,8 @@ public class Final extends JFrame {
             Collections.shuffle(yerlesecekler);
             basariliDuzen = true;
 
-            for (int j = 0; j < sutun; j++) {
-                for (int i = 0; i < satir; i++) {
+            for (int i = 0; i < satir; i++) {
+                for (int j = 0; j < sutun; j++) {
                     if (yerlesecekler.isEmpty()) break;
 
                     boolean uygunBulundu = false;
@@ -523,8 +584,8 @@ public class Final extends JFrame {
             sinifMatrisi = new Ogrenci[satir][sutun];
             List<Ogrenci> yerlesecekler = new ArrayList<>(list);
             Collections.shuffle(yerlesecekler);
-            for (int j = 0; j < sutun; j++) {
-                for (int i = 0; i < satir; i++) {
+            for (int i = 0; i < satir; i++) {
+                for (int j = 0; j < sutun; j++) {
                     if (yerlesecekler.isEmpty()) break;
                     boolean uygunBulundu = false;
                     for (int k = 0; k < yerlesecekler.size(); k++) {
@@ -647,6 +708,7 @@ class LabelTasarim extends JLabel {
 
 class KartTasarim extends JPanel {
     private JLabel lblDeger;
+
     public KartTasarim(String baslik, String deger, Color solRenk) {
         setLayout(new BorderLayout());
         setBackground(Color.WHITE);
@@ -663,15 +725,19 @@ class KartTasarim extends JPanel {
         pnlIcerik.setBackground(Color.WHITE);
 
         JLabel lblBaslik = new JLabel(baslik);
-        lblBaslik.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        lblBaslik.setForeground(new Color(136, 142, 152));
+        lblBaslik.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        lblBaslik.setForeground(new Color(149, 165, 166));
+
         lblDeger = new JLabel(deger);
-        lblDeger.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        lblDeger.setForeground(new Color(47, 53, 66));
+        lblDeger.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        lblDeger.setForeground(new Color(44, 62, 80));
 
         pnlIcerik.add(lblBaslik);
         pnlIcerik.add(lblDeger);
         add(pnlIcerik, BorderLayout.CENTER);
     }
-    public void guncelle(String yeniDeger) { lblDeger.setText(yeniDeger); }
+
+    public void guncelle(String yeniDeger) {
+        lblDeger.setText(yeniDeger);
+    }
 }
