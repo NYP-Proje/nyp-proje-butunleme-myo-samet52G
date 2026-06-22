@@ -218,8 +218,19 @@ public class Final extends JFrame {
 
         // EVENT LISTENERS
         btnStart.addActionListener(e -> {
-            CardLayout cl = (CardLayout) getContentPane().getLayout();
-            cl.show(getContentPane(), "AnaPanel");
+            // Geliştirme: Güvenli Yetkili Giriş Şifresi Kontrolü
+            JPasswordField pf = new JPasswordField();
+            int option = JOptionPane.showConfirmDialog(this, pf, "Sistem Yönetici Şifresini Giriniz (Varsayılan: 1234):", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+            if (option == JOptionPane.OK_OPTION) {
+                String password = new String(pf.getPassword());
+                if (password.equals("1234")) {
+                    CardLayout cl = (CardLayout) getContentPane().getLayout();
+                    cl.show(getContentPane(), "AnaPanel");
+                } else {
+                    JOptionPane.showMessageDialog(this, "Hatalı Yönetici Şifresi! Erişim Reddedildi.", "Yetkilendirme Hatası", JOptionPane.ERROR_MESSAGE);
+                }
+            }
         });
 
         btnPlanla.addActionListener(e -> planiArayuzeYansit());
@@ -547,7 +558,7 @@ public class Final extends JFrame {
     public static Ogrenci[][] dikeyOturmaPlaniOlustur(List<Ogrenci> list, int satir, int sutun) {
         Ogrenci[][] sinifMatrisi = new Ogrenci[satir][sutun];
         boolean basariliDuzen = false;
-        int maxDeneme = 2000;
+        int maxDeneme = 3000; // Akıllı filtre geliştiği için deneme sınırını artırdık
         int deneme = 0;
 
         while (deneme < maxDeneme && !basariliDuzen) {
@@ -606,10 +617,11 @@ public class Final extends JFrame {
         return sinifMatrisi;
     }
 
+    // Geliştirme: Kopya Önleme Filtresi 8 Yönlü (Sağ, Sol, Ön, Arka ve Tüm Çaprazlar) Olarak Güncellendi
     private static boolean konumGuvenliMi(Ogrenci[][] matris, int r, int c, String bolum) {
-        int[] dr = {-1, 1, 0, 0};
-        int[] dc = {0, 0, -1, 1};
-        for (int i = 0; i < 4; i++) {
+        int[] dr = {-1, 1, 0, 0, -1, -1, 1, 1};
+        int[] dc = {0, 0, -1, 1, -1, 1, -1, 1};
+        for (int i = 0; i < 8; i++) {
             int nr = r + dr[i];
             int nc = c + dc[i];
             if (nr >= 0 && nr < matris.length && nc >= 0 && nc < matris[0].length) {
